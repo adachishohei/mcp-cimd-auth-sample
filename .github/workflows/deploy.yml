@@ -1,0 +1,66 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: CDK Bootstrap (if needed)
+        run: |
+          if ! aws cloudformation describe-stacks --stack-name CDKToolkit &> /dev/null; then
+            npx cdk bootstrap
+          fi
+
+      - name: CDK Synth
+        run: npx cdk synth
+
+      - name: CDK Deploy
+        run: npx cdk deploy --require-approval never
+
+      - name: Get Stack Outputs
+        id: outputs
+        run: |
+          echo "user_pool_id=$(aws cloudformation describe-stacks --stack-name AuthenticatedMcpStack --query 'Stacks[0].Outputs[?OutputKey==`UserPoolId`].OutputValue' --output text)" >> $GITHUB_OUTPUT
+          echo "auth_proxy_url=$(aws cloudformation describe-stacks --stack-name AuthenticatedMcpStack --query 'Stacks[0].Outputs[?OutputKey==`AuthProxyApiUrl`].OutputValue' --output text)" >> $GITHUB_OUTPUT
+          echo "mcp_server_url=$(aws cloudformation describe-stacks --stack-name AuthenticatedMcpStack --query 'Stacks[0].Outputs[?OutputKey==`McpServerApiUrl`].OutputValue' --output text)" >> $GITHUB_OUTPUT
+
+      - name: Display Deployment Info
+        run: |
+          echo "Deployment completed successfully!"
+          echo "User Pool ID: ${{ steps.outputs.outputs.user_pool_id }}"
+          echo "Auth Proxy URL: ${{ steps.outputs.outputs.auth_proxy_url }}"
+          echo "MCP Server URL: ${{ steps.outputs.outputs.mcp_server_url }}"

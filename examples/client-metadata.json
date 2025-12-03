@@ -1,0 +1,17 @@
+{
+  "client_id": "https://example.com/client.json",
+  "client_name": "My MCP Client",
+  "client_uri": "https://example.com",
+  "logo_uri": "https://example.com/logo.png",
+  "redirect_uris": [
+    "http://localhost:3000/callback",
+    "https://app.example.com/callback"
+  ],
+  "grant_types": [
+    "authorization_code"
+  ],
+  "response_types": [
+    "code"
+  ],
+  "token_endpoint_auth_method": "none"
+}
