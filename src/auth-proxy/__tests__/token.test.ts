@@ -34,6 +34,9 @@ describe('Token Endpoint', () => {
     process.env.COGNITO_DOMAIN = 'test-domain';
     process.env.COGNITO_CLIENT_ID = 'test-client-id';
     process.env.COGNITO_REGION = 'us-east-1';
+    process.env.API_ID = 'test-api-id';
+    process.env.STAGE_NAME = 'prod';
+    process.env.AWS_REGION_NAME = 'us-east-1';
   });
 
   it('should return 400 when grant_type is missing', async () => {

@@ -4,7 +4,6 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 import * as path from 'path';
 
@@ -55,7 +54,8 @@ export class AuthenticatedMcpStack extends cdk.Stack {
 
     // Create User Pool Client with OAuth 2.1 settings (PKCE required)
     // 要件 3.3, 3.4: OAuth 2.1設定（PKCE必須）とトークン発行
-    // Note: We'll update callback_urls after API Gateway is created
+    // Note: Using standard scopes only (openid, email, profile)
+    // Custom scopes can be added later if needed
     this.userPoolClient = this.userPool.addClient('McpUserPoolClient', {
       userPoolClientName: 'mcp-server-client',
       generateSecret: false, // Public client (PKCE required)
@@ -74,7 +74,6 @@ export class AuthenticatedMcpStack extends cdk.Stack {
           cognito.OAuthScope.OPENID,
           cognito.OAuthScope.EMAIL,
           cognito.OAuthScope.PROFILE,
-          cognito.OAuthScope.custom('mcp:tools'),
         ],
         callbackUrls: [
           // Development/testing URLs (will add Auth Proxy callback after API Gateway creation)
@@ -92,21 +91,6 @@ export class AuthenticatedMcpStack extends cdk.Stack {
       // OAuth 2.1 requires PKCE for public clients
       preventUserExistenceErrors: true,
     });
-
-    // Add custom scope to User Pool Resource Server
-    const resourceServer = this.userPool.addResourceServer('McpResourceServer', {
-      identifier: 'mcp-server',
-      userPoolResourceServerName: 'MCP Server Resource',
-      scopes: [
-        {
-          scopeName: 'tools',
-          scopeDescription: 'Access to MCP tools',
-        },
-      ],
-    });
-
-    // Ensure resource server is created before client
-    this.userPoolClient.node.addDependency(resourceServer);
 
     // Output important values
     new cdk.CfnOutput(this, 'UserPoolId', {
@@ -146,10 +130,10 @@ export class AuthenticatedMcpStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY, // For development
     });
 
-    // Create API Gateway for auth proxy first (needed for callback URL)
+    // Create unified API Gateway for all endpoints
     const authProxyApi = new apigateway.RestApi(this, 'AuthProxyApi', {
-      restApiName: 'MCP Auth Proxy',
-      description: 'OAuth 2.1 Authorization Proxy for MCP Server',
+      restApiName: 'Authenticated MCP Server',
+      description: 'Unified API for OAuth 2.1 Authorization and MCP Protocol',
       deployOptions: {
         stageName: 'prod',
       },
@@ -158,9 +142,6 @@ export class AuthenticatedMcpStack extends cdk.Stack {
         allowMethods: apigateway.Cors.ALL_METHODS,
       },
     });
-
-    // Get the Auth Proxy base URL (without trailing slash)
-    const authProxyBaseUrl = authProxyApi.url.replace(/\/$/, '');
 
     // Lambda function for authorization endpoint
     // 要件 1.1, 1.2, 1.3, 1.4, 1.5
@@ -173,10 +154,10 @@ export class AuthenticatedMcpStack extends cdk.Stack {
         COGNITO_DOMAIN: this.userPoolDomain.domainName,
         COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
         COGNITO_REGION: cdk.Aws.REGION,
-        AUTH_PROXY_BASE_URL: authProxyBaseUrl,
+        API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
       },
       timeout: cdk.Duration.seconds(30),
-      logRetention: logs.RetentionDays.ONE_WEEK,
       description: 'OAuth 2.1 Authorization Endpoint Handler',
       bundling: {
         minify: true,
@@ -198,9 +179,10 @@ export class AuthenticatedMcpStack extends cdk.Stack {
         COGNITO_DOMAIN: this.userPoolDomain.domainName,
         COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
         COGNITO_REGION: cdk.Aws.REGION,
+        API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
       },
       timeout: cdk.Duration.seconds(30),
-      logRetention: logs.RetentionDays.ONE_WEEK,
       description: 'OAuth 2.1 Callback Endpoint Handler (Cognito → MCP Client)',
       bundling: {
         minify: true,
@@ -210,7 +192,7 @@ export class AuthenticatedMcpStack extends cdk.Stack {
     });
 
     // Grant DynamoDB permissions to callback function
-    sessionTable.grantReadData(callbackFunction);
+    sessionTable.grantReadWriteData(callbackFunction);
 
     // Lambda function for consent page
     const consentFunction = new nodejs.NodejsFunction(this, 'ConsentFunction', {
@@ -222,10 +204,10 @@ export class AuthenticatedMcpStack extends cdk.Stack {
         COGNITO_DOMAIN: this.userPoolDomain.domainName,
         COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
         COGNITO_REGION: cdk.Aws.REGION,
-        AUTH_PROXY_BASE_URL: authProxyBaseUrl,
+        API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
       },
       timeout: cdk.Duration.seconds(10),
-      logRetention: logs.RetentionDays.ONE_WEEK,
       description: 'Consent Page Handler (displays client_name)',
       bundling: {
         minify: true,
@@ -247,10 +229,10 @@ export class AuthenticatedMcpStack extends cdk.Stack {
         COGNITO_DOMAIN: this.userPoolDomain.domainName,
         COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
         COGNITO_REGION: cdk.Aws.REGION,
-        AUTH_PROXY_BASE_URL: authProxyBaseUrl,
+        API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
       },
       timeout: cdk.Duration.seconds(10),
-      logRetention: logs.RetentionDays.ONE_WEEK,
       description: 'Consent Approval Handler',
       bundling: {
         minify: true,
@@ -272,10 +254,10 @@ export class AuthenticatedMcpStack extends cdk.Stack {
         COGNITO_DOMAIN: this.userPoolDomain.domainName,
         COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
         COGNITO_REGION: cdk.Aws.REGION,
-        AUTH_PROXY_BASE_URL: authProxyBaseUrl,
+        API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
       },
       timeout: cdk.Duration.seconds(10),
-      logRetention: logs.RetentionDays.ONE_WEEK,
       description: 'Consent Denial Handler',
       bundling: {
         minify: true,
@@ -298,9 +280,10 @@ export class AuthenticatedMcpStack extends cdk.Stack {
         COGNITO_DOMAIN: this.userPoolDomain.domainName,
         COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
         COGNITO_REGION: cdk.Aws.REGION,
+        API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
       },
       timeout: cdk.Duration.seconds(30),
-      logRetention: logs.RetentionDays.ONE_WEEK,
       description: 'OAuth 2.1 Token Endpoint Handler',
       bundling: {
         minify: true,
@@ -311,6 +294,38 @@ export class AuthenticatedMcpStack extends cdk.Stack {
 
     // Grant DynamoDB permissions to token function
     sessionTable.grantReadWriteData(tokenFunction);
+
+    // Lambda function for Authorization Server Metadata endpoint
+    // RFC 8414: OAuth 2.0 Authorization Server Metadata
+    const authServerMetadataFunction = new nodejs.NodejsFunction(this, 'AuthServerMetadataFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      entry: path.join(__dirname, '../src/auth-proxy/auth-server-metadata.ts'),
+      handler: 'handler',
+      environment: {
+        SESSION_TABLE_NAME: sessionTable.tableName,
+        COGNITO_DOMAIN: this.userPoolDomain.domainName,
+        COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
+        COGNITO_REGION: cdk.Aws.REGION,
+        API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
+        AWS_REGION_NAME: cdk.Aws.REGION,
+      },
+      timeout: cdk.Duration.seconds(10),
+      description: 'OAuth 2.0 Authorization Server Metadata Endpoint Handler',
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    // Add /.well-known/oauth-authorization-server endpoint
+    const wellKnownAuthResource = authProxyApi.root.addResource('.well-known');
+    const authServerMetadataResource = wellKnownAuthResource.addResource('oauth-authorization-server');
+    authServerMetadataResource.addMethod(
+      'GET',
+      new apigateway.LambdaIntegration(authServerMetadataFunction)
+    );
 
     // Add /authorize endpoint
     const authorizeResource = authProxyApi.root.addResource('authorize');
@@ -354,11 +369,11 @@ export class AuthenticatedMcpStack extends cdk.Stack {
       new apigateway.LambdaIntegration(tokenFunction)
     );
 
-    // Output API Gateway URL
-    new cdk.CfnOutput(this, 'AuthProxyApiUrl', {
+    // Output unified API Gateway URL
+    new cdk.CfnOutput(this, 'ApiUrl', {
       value: authProxyApi.url,
-      description: 'Auth Proxy API Gateway URL',
-      exportName: 'McpAuthProxyApiUrl',
+      description: 'Unified API Gateway URL (Auth + MCP)',
+      exportName: 'McpApiUrl',
     });
 
     new cdk.CfnOutput(this, 'AuthorizeEndpoint', {
@@ -368,13 +383,13 @@ export class AuthenticatedMcpStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'ConsentEndpoint', {
-      value: `${authProxyBaseUrl}/consent`,
+      value: `${authProxyApi.url}consent`,
       description: 'Consent Page Endpoint URL',
       exportName: 'McpConsentEndpoint',
     });
 
     new cdk.CfnOutput(this, 'CallbackEndpoint', {
-      value: `${authProxyBaseUrl}/callback`,
+      value: `${authProxyApi.url}callback`,
       description: 'Callback Endpoint URL (add this to Cognito callback URLs)',
       exportName: 'McpCallbackEndpoint',
     });
@@ -385,23 +400,16 @@ export class AuthenticatedMcpStack extends cdk.Stack {
       exportName: 'McpTokenEndpoint',
     });
 
+    new cdk.CfnOutput(this, 'AuthServerMetadataEndpoint', {
+      value: `${authProxyApi.url}.well-known/oauth-authorization-server`,
+      description: 'Authorization Server Metadata Endpoint URL',
+      exportName: 'McpAuthServerMetadataEndpoint',
+    });
+
     new cdk.CfnOutput(this, 'SessionTableName', {
       value: sessionTable.tableName,
       description: 'DynamoDB Session Table Name',
       exportName: 'McpSessionTableName',
-    });
-
-    // Create API Gateway for MCP server
-    const mcpServerApi = new apigateway.RestApi(this, 'McpServerApi', {
-      restApiName: 'MCP Server',
-      description: 'Authenticated MCP Server with OAuth 2.1',
-      deployOptions: {
-        stageName: 'prod',
-      },
-      defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
-        allowMethods: apigateway.Cors.ALL_METHODS,
-      },
     });
 
     // Lambda function for Protected Resource Metadata endpoint
@@ -411,12 +419,16 @@ export class AuthenticatedMcpStack extends cdk.Stack {
       entry: path.join(__dirname, '../src/mcp-server/metadata.ts'),
       handler: 'handler',
       environment: {
-        MCP_SERVER_URI: mcpServerApi.url.replace(/\/$/, ''), // Remove trailing slash
-        AUTH_PROXY_URI: authProxyApi.url.replace(/\/$/, ''), // Remove trailing slash
-        SUPPORTED_SCOPES: 'mcp:tools',
+        MCP_API_ID: authProxyApi.restApiId,
+        AUTH_API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
+        AWS_REGION_NAME: cdk.Aws.REGION,
+        SUPPORTED_SCOPES: 'openid,email,profile',
+        COGNITO_USER_POOL_ID: this.userPool.userPoolId,
+        COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
+        COGNITO_REGION: cdk.Aws.REGION,
       },
       timeout: cdk.Duration.seconds(10),
-      logRetention: logs.RetentionDays.ONE_WEEK,
       description: 'Protected Resource Metadata Endpoint Handler',
       bundling: {
         minify: true,
@@ -425,23 +437,15 @@ export class AuthenticatedMcpStack extends cdk.Stack {
       },
     });
 
-    // Add /.well-known/oauth-protected-resource endpoint
-    const wellKnownResource = mcpServerApi.root.addResource('.well-known');
-    const protectedResourceMetadataResource = wellKnownResource.addResource('oauth-protected-resource');
+    // Add /.well-known/oauth-protected-resource endpoint to Auth Proxy API
+    const protectedResourceMetadataResource = wellKnownAuthResource.addResource('oauth-protected-resource');
     protectedResourceMetadataResource.addMethod(
       'GET',
       new apigateway.LambdaIntegration(metadataFunction)
     );
 
-    // Output MCP Server API Gateway URL
-    new cdk.CfnOutput(this, 'McpServerApiUrl', {
-      value: mcpServerApi.url,
-      description: 'MCP Server API Gateway URL',
-      exportName: 'McpServerApiUrl',
-    });
-
     new cdk.CfnOutput(this, 'ProtectedResourceMetadataEndpoint', {
-      value: `${mcpServerApi.url}.well-known/oauth-protected-resource`,
+      value: `${authProxyApi.url}.well-known/oauth-protected-resource`,
       description: 'Protected Resource Metadata Endpoint URL',
       exportName: 'McpProtectedResourceMetadataEndpoint',
     });
@@ -453,13 +457,16 @@ export class AuthenticatedMcpStack extends cdk.Stack {
       entry: path.join(__dirname, '../src/mcp-server/mcp-handler.ts'),
       handler: 'handler',
       environment: {
-        MCP_SERVER_URI: mcpServerApi.url.replace(/\/$/, ''), // Remove trailing slash
+        MCP_API_ID: authProxyApi.restApiId,
+        AUTH_API_ID: authProxyApi.restApiId,
+        STAGE_NAME: 'prod',
+        AWS_REGION_NAME: cdk.Aws.REGION,
         COGNITO_USER_POOL_ID: this.userPool.userPoolId,
         COGNITO_REGION: cdk.Aws.REGION,
         COGNITO_CLIENT_ID: this.userPoolClient.userPoolClientId,
+        SUPPORTED_SCOPES: 'openid,email,profile',
       },
       timeout: cdk.Duration.seconds(30),
-      logRetention: logs.RetentionDays.ONE_WEEK,
       description: 'MCP Protocol Handler with JWT Authentication',
       bundling: {
         minify: true,
@@ -468,15 +475,15 @@ export class AuthenticatedMcpStack extends cdk.Stack {
       },
     });
 
-    // Add /mcp endpoint for MCP protocol requests
-    const mcpResource = mcpServerApi.root.addResource('mcp');
+    // Add /mcp endpoint for MCP protocol requests to Auth Proxy API
+    const mcpResource = authProxyApi.root.addResource('mcp');
     mcpResource.addMethod(
       'POST',
       new apigateway.LambdaIntegration(mcpHandlerFunction)
     );
 
     new cdk.CfnOutput(this, 'McpEndpoint', {
-      value: `${mcpServerApi.url}mcp`,
+      value: `${authProxyApi.url}mcp`,
       description: 'MCP Protocol Endpoint URL',
       exportName: 'McpEndpoint',
     });

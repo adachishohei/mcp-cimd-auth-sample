@@ -26,6 +26,9 @@ describe('Configuration Management', () => {
       process.env.COGNITO_DOMAIN = 'test-domain';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
       process.env.COGNITO_REGION = 'us-east-1';
+      process.env.API_ID = 'test-api-id';
+      process.env.STAGE_NAME = 'prod';
+      process.env.AWS_REGION_NAME = 'us-east-1';
 
       const config = getAuthProxyConfig();
 
@@ -34,6 +37,7 @@ describe('Configuration Management', () => {
         cognitoDomain: 'test-domain',
         cognitoClientId: 'test-client-id',
         cognitoRegion: 'us-east-1',
+        authProxyBaseUrl: 'https://test-api-id.execute-api.us-east-1.amazonaws.com/prod',
       });
     });
 
@@ -42,6 +46,9 @@ describe('Configuration Management', () => {
       process.env.COGNITO_DOMAIN = 'test-domain';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
       process.env.AWS_REGION = 'eu-west-1';
+      process.env.API_ID = 'test-api-id';
+      process.env.STAGE_NAME = 'prod';
+      process.env.AWS_REGION_NAME = 'eu-west-1';
 
       const config = getAuthProxyConfig();
 
@@ -77,6 +84,9 @@ describe('Configuration Management', () => {
       process.env.COGNITO_DOMAIN = '  test-domain  ';
       process.env.COGNITO_CLIENT_ID = '  test-client-id  ';
       process.env.COGNITO_REGION = '  us-east-1  ';
+      process.env.API_ID = '  test-api-id  ';
+      process.env.STAGE_NAME = '  prod  ';
+      process.env.AWS_REGION_NAME = '  us-east-1  ';
 
       const config = getAuthProxyConfig();
 
@@ -89,8 +99,10 @@ describe('Configuration Management', () => {
 
   describe('getMcpServerConfig', () => {
     it('should return valid configuration when all required env vars are set', () => {
-      process.env.MCP_SERVER_URI = 'https://mcp.example.com';
-      process.env.AUTH_PROXY_URI = 'https://auth.example.com';
+      process.env.MCP_API_ID = 'test-mcp-api';
+      process.env.AUTH_API_ID = 'test-auth-api';
+      process.env.STAGE_NAME = 'prod';
+      process.env.AWS_REGION_NAME = 'us-east-1';
       process.env.COGNITO_USER_POOL_ID = 'us-east-1_ABC123';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
       process.env.COGNITO_REGION = 'us-east-1';
@@ -99,8 +111,8 @@ describe('Configuration Management', () => {
       const config = getMcpServerConfig();
 
       expect(config).toEqual({
-        mcpServerUri: 'https://mcp.example.com',
-        authProxyUri: 'https://auth.example.com',
+        mcpServerUri: 'https://test-mcp-api.execute-api.us-east-1.amazonaws.com/prod',
+        authProxyUri: 'https://test-auth-api.execute-api.us-east-1.amazonaws.com/prod',
         cognitoUserPoolId: 'us-east-1_ABC123',
         cognitoClientId: 'test-client-id',
         cognitoRegion: 'us-east-1',
@@ -109,38 +121,43 @@ describe('Configuration Management', () => {
     });
 
     it('should use default scope when SUPPORTED_SCOPES is not set', () => {
-      process.env.MCP_SERVER_URI = 'https://mcp.example.com';
-      process.env.AUTH_PROXY_URI = 'https://auth.example.com';
+      process.env.MCP_API_ID = 'test-mcp-api';
+      process.env.AUTH_API_ID = 'test-auth-api';
+      process.env.STAGE_NAME = 'prod';
+      process.env.AWS_REGION_NAME = 'us-east-1';
       process.env.COGNITO_USER_POOL_ID = 'us-east-1_ABC123';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
 
       const config = getMcpServerConfig();
 
-      expect(config.supportedScopes).toEqual(['mcp:tools']);
+      expect(config.supportedScopes).toEqual(['openid', 'email', 'profile']);
     });
 
-    it('should throw ConfigurationError when MCP_SERVER_URI is missing', () => {
-      process.env.AUTH_PROXY_URI = 'https://auth.example.com';
+    it('should throw ConfigurationError when MCP_API_ID is missing', () => {
+      process.env.AUTH_API_ID = 'test-auth-api';
+      process.env.STAGE_NAME = 'prod';
       process.env.COGNITO_USER_POOL_ID = 'us-east-1_ABC123';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
 
       expect(() => getMcpServerConfig()).toThrow(ConfigurationError);
-      expect(() => getMcpServerConfig()).toThrow('MCP_SERVER_URI');
+      expect(() => getMcpServerConfig()).toThrow('MCP_API_ID');
     });
 
-    it('should throw ConfigurationError when MCP_SERVER_URI is invalid URL', () => {
-      process.env.MCP_SERVER_URI = 'not-a-valid-url';
-      process.env.AUTH_PROXY_URI = 'https://auth.example.com';
+    it('should throw ConfigurationError when AUTH_API_ID is missing', () => {
+      process.env.MCP_API_ID = 'test-mcp-api';
+      process.env.STAGE_NAME = 'prod';
       process.env.COGNITO_USER_POOL_ID = 'us-east-1_ABC123';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
 
       expect(() => getMcpServerConfig()).toThrow(ConfigurationError);
-      expect(() => getMcpServerConfig()).toThrow('Invalid URL format');
+      expect(() => getMcpServerConfig()).toThrow('AUTH_API_ID');
     });
 
     it('should throw ConfigurationError when COGNITO_USER_POOL_ID has invalid format', () => {
-      process.env.MCP_SERVER_URI = 'https://mcp.example.com';
-      process.env.AUTH_PROXY_URI = 'https://auth.example.com';
+      process.env.MCP_API_ID = 'test-mcp-api';
+      process.env.AUTH_API_ID = 'test-auth-api';
+      process.env.STAGE_NAME = 'prod';
+      process.env.AWS_REGION_NAME = 'us-east-1';
       process.env.COGNITO_USER_POOL_ID = 'invalid-format';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
 
@@ -149,8 +166,10 @@ describe('Configuration Management', () => {
     });
 
     it('should parse comma-separated scopes correctly', () => {
-      process.env.MCP_SERVER_URI = 'https://mcp.example.com';
-      process.env.AUTH_PROXY_URI = 'https://auth.example.com';
+      process.env.MCP_API_ID = 'test-mcp-api';
+      process.env.AUTH_API_ID = 'test-auth-api';
+      process.env.STAGE_NAME = 'prod';
+      process.env.AWS_REGION_NAME = 'us-east-1';
       process.env.COGNITO_USER_POOL_ID = 'us-east-1_ABC123';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
       process.env.SUPPORTED_SCOPES = 'scope1, scope2 , scope3';
@@ -161,15 +180,17 @@ describe('Configuration Management', () => {
     });
 
     it('should use default scope when SUPPORTED_SCOPES is whitespace only', () => {
-      process.env.MCP_SERVER_URI = 'https://mcp.example.com';
-      process.env.AUTH_PROXY_URI = 'https://auth.example.com';
+      process.env.MCP_API_ID = 'test-mcp-api';
+      process.env.AUTH_API_ID = 'test-auth-api';
+      process.env.STAGE_NAME = 'prod';
+      process.env.AWS_REGION_NAME = 'us-east-1';
       process.env.COGNITO_USER_POOL_ID = 'us-east-1_ABC123';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
       process.env.SUPPORTED_SCOPES = '   ';
 
       const config = getMcpServerConfig();
 
-      expect(config.supportedScopes).toEqual(['mcp:tools']);
+      expect(config.supportedScopes).toEqual(['openid', 'email', 'profile']);
     });
   });
 
@@ -210,13 +231,17 @@ describe('Configuration Management', () => {
       process.env.COGNITO_DOMAIN = 'test-domain';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
       process.env.COGNITO_REGION = 'us-east-1';
+      process.env.API_ID = 'test-api-id';
+      process.env.STAGE_NAME = 'prod';
 
       expect(() => validateConfiguration('auth-proxy')).not.toThrow();
     });
 
     it('should validate mcp-server configuration successfully', () => {
-      process.env.MCP_SERVER_URI = 'https://mcp.example.com';
-      process.env.AUTH_PROXY_URI = 'https://auth.example.com';
+      process.env.MCP_API_ID = 'test-mcp-api';
+      process.env.AUTH_API_ID = 'test-auth-api';
+      process.env.STAGE_NAME = 'prod';
+      process.env.AWS_REGION_NAME = 'us-east-1';
       process.env.COGNITO_USER_POOL_ID = 'us-east-1_ABC123';
       process.env.COGNITO_CLIENT_ID = 'test-client-id';
 

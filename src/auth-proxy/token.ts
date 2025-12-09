@@ -52,16 +52,8 @@ export async function handler(
       throw new OAuth2Error('invalid_request', 'code_verifier is required (PKCE)');
     }
 
-    // Retrieve session from DynamoDB using the state parameter
-    // The state parameter contains the session ID that was generated during authorization
-    // and passed through Cognito back to the client
-    const sessionId = body.state;
-    
-    if (!sessionId) {
-      throw new OAuth2Error('invalid_request', 'state parameter is required');
-    }
-    
-    const session = await retrieveSession(sessionId);
+    // Retrieve session from DynamoDB using the authorization code
+    const session = await findSessionByCode(config.sessionTableName, code);
 
     if (!session) {
       throw new OAuth2Error('invalid_grant', 'Invalid or expired authorization code');
@@ -85,13 +77,15 @@ export async function handler(
     }
 
     // 要件 2.3: PKCE検証が成功したらCognitoのトークンエンドポイントを呼び出す
+    // Use the callback URL as redirect_uri (must match the one used in authorization request)
+    const cognitoRedirectUri = `${config.authProxyBaseUrl}/callback`;
     const tokens = await exchangeCodeForTokens(config, {
       code,
-      redirectUri,
+      redirectUri: cognitoRedirectUri,
     });
 
     // Delete the session after successful token exchange (one-time use)
-    await deleteSession(sessionId);
+    await deleteSession(config.sessionTableName, session.sessionId);
 
     // 要件 2.4: Cognitoから取得したトークンをMCPクライアントに返す
     return {
@@ -170,14 +164,40 @@ async function retrieveSession(sessionId: string): Promise<AuthSession | null> {
 }
 
 /**
+ * Find session by authorization code
+ */
+async function findSessionByCode(tableName: string, code: string): Promise<AuthSession | null> {
+  try {
+    const { ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+    const result = await docClient.send(
+      new ScanCommand({
+        TableName: tableName,
+        FilterExpression: 'authorization_code = :code',
+        ExpressionAttributeValues: {
+          ':code': code,
+        },
+      })
+    );
+
+    if (!result.Items || result.Items.length === 0) {
+      return null;
+    }
+
+    return result.Items[0] as AuthSession;
+  } catch (error) {
+    console.error('Failed to find session by code:', error);
+    return null;
+  }
+}
+
+/**
  * Delete session from DynamoDB
  */
-async function deleteSession(sessionId: string): Promise<void> {
+async function deleteSession(tableName: string, sessionId: string): Promise<void> {
   try {
-    const config = getAuthProxyConfig();
     await docClient.send(
       new DeleteCommand({
-        TableName: config.sessionTableName,
+        TableName: tableName,
         Key: { sessionId },
       })
     );

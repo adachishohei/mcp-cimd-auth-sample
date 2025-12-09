@@ -12,11 +12,14 @@ import { verifyJWTMiddleware } from '../jwt-middleware';
 describe('MCP Handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.MCP_SERVER_URI = 'https://mcp-server.example.com';
-    process.env.AUTH_PROXY_URI = 'https://auth-proxy.example.com';
+    process.env.MCP_API_ID = 'test-mcp-api';
+    process.env.AUTH_API_ID = 'test-auth-api';
+    process.env.STAGE_NAME = 'prod';
+    process.env.AWS_REGION_NAME = 'us-east-1';
     process.env.COGNITO_USER_POOL_ID = 'us-east-1_test123';
     process.env.COGNITO_REGION = 'us-east-1';
     process.env.COGNITO_CLIENT_ID = 'test-client-id';
+    process.env.SUPPORTED_SCOPES = 'openid,email,profile';
   });
 
   it('should return 401 when JWT verification fails', async () => {
@@ -78,7 +81,7 @@ describe('MCP Handler', () => {
     expect(result.statusCode).toBe(200);
     expect(verifyJWTMiddleware).toHaveBeenCalledWith(
       event,
-      'https://mcp-server.example.com/.well-known/oauth-protected-resource'
+      'https://test-mcp-api.execute-api.us-east-1.amazonaws.com/prod/.well-known/oauth-protected-resource'
     );
   });
 

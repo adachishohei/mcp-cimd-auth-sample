@@ -2,6 +2,21 @@
 
 OAuth 2.1認証機能を持つリモートModel Context Protocol (MCP)サーバー
 
+## 目次
+
+- [概要](#概要)
+- [クイックスタート](#クイックスタート)
+- [プロジェクト構造](#プロジェクト構造)
+- [セットアップ](#セットアップ)
+- [デプロイ](#デプロイ)
+- [MCP Client設定例](#mcp-client設定例)
+- [使用例](#使用例)
+- [MCP Inspectorを使ったテスト](#mcp-inspectorを使ったテスト)
+- [環境変数](#環境変数)
+- [トラブルシューティング](#トラブルシューティング)
+- [ドキュメント](#ドキュメント)
+- [ライセンス](#ライセンス)
+
 ## 概要
 
 本プロジェクトは、MCP仕様のClient ID Metadata Documents方式を使用した認証機能を実装するリモートMCPサーバーです。
@@ -45,14 +60,34 @@ curl https://<MCP_SERVER_URL>/.well-known/oauth-protected-resource
 ├── src/                      # Lambda関数ソースコード
 │   ├── auth-proxy/          # 認可プロキシ
 │   │   ├── authorize.ts     # 認可エンドポイント
-│   │   └── token.ts         # トークンエンドポイント
+│   │   ├── token.ts         # トークンエンドポイント
+│   │   ├── callback.ts      # Cognitoコールバック
+│   │   ├── consent.ts       # 同意画面
+│   │   ├── consent-action.ts # 同意アクション
+│   │   └── auth-server-metadata.ts # Authorization Server Metadata
 │   ├── mcp-server/          # MCPサーバー
 │   │   ├── metadata.ts      # Protected Resource Metadata
-│   │   └── mcp-handler.ts   # MCPプロトコルハンドラー
+│   │   ├── mcp-handler.ts   # MCPプロトコルハンドラー
+│   │   └── jwt-middleware.ts # JWT検証ミドルウェア
+│   ├── config/              # 設定管理
+│   │   └── index.ts         # 集約設定
 │   ├── types/               # 共有型定義
 │   │   └── index.ts
-│   └── utils/               # ユーティリティ
-│       └── errors.ts
+│   ├── utils/               # ユーティリティ
+│   │   ├── errors.ts        # エラークラス
+│   │   ├── error-handler.ts # 共通エラーハンドリング
+│   │   └── validation.ts    # OAuth2バリデーション
+│   └── __tests__/           # テスト
+│       └── helpers/         # テストヘルパー
+│           ├── mocks.ts     # モックデータ
+│           └── assertions.ts # アサーションヘルパー
+├── docs/                     # ドキュメント
+│   ├── getting-started/     # 入門ガイド
+│   ├── configuration/       # 設定ドキュメント
+│   ├── api/                 # APIリファレンス
+│   ├── guides/              # 使用ガイド
+│   └── architecture/        # アーキテクチャドキュメント
+├── scripts/                  # デプロイ・管理スクリプト
 ├── package.json
 ├── tsconfig.json
 ├── cdk.json
@@ -114,16 +149,24 @@ make deploy
 
 デプロイ後、以下の情報が出力されます：
 
-- `UserPoolId`: Cognito User Pool ID
-- `UserPoolClientId`: Cognito User Pool Client ID
-- `UserPoolDomain`: Cognito User Pool Domain
-- `CognitoManagedUIUrl`: Cognito Managed UI URL
-- `AuthProxyApiUrl`: 認可プロキシAPI URL
-- `McpServerApiUrl`: MCPサーバーAPI URL
-- `AuthorizeEndpoint`: 認可エンドポイント URL
-- `TokenEndpoint`: トークンエンドポイント URL
-- `ProtectedResourceMetadataEndpoint`: Protected Resource Metadata URL
-- `McpEndpoint`: MCPプロトコルエンドポイント URL
+```
+Outputs:
+AuthenticatedMcpStack.UserPoolId = us-east-1_XXXXXXXXX
+AuthenticatedMcpStack.UserPoolClientId = 1234567890abcdefghijklmnop
+AuthenticatedMcpStack.UserPoolDomain = mcp-auth-123456789012
+AuthenticatedMcpStack.CognitoManagedUIUrl = https://mcp-auth-123456789012.auth.us-east-1.amazoncognito.com
+AuthenticatedMcpStack.AuthProxyApiUrl = https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/
+AuthenticatedMcpStack.McpServerApiUrl = https://def456uvw.execute-api.us-east-1.amazonaws.com/prod/
+AuthenticatedMcpStack.AuthorizeEndpoint = https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/authorize
+AuthenticatedMcpStack.TokenEndpoint = https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/token
+AuthenticatedMcpStack.AuthServerMetadataEndpoint = https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/.well-known/oauth-authorization-server
+AuthenticatedMcpStack.CallbackEndpoint = https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/callback
+AuthenticatedMcpStack.ConsentEndpoint = https://abc123xyz.execute-api.us-east-1.amazonaws.com/prod/consent
+AuthenticatedMcpStack.ProtectedResourceMetadataEndpoint = https://def456uvw.execute-api.us-east-1.amazonaws.com/prod/.well-known/oauth-protected-resource
+AuthenticatedMcpStack.McpEndpoint = https://def456uvw.execute-api.us-east-1.amazonaws.com/prod/mcp
+```
+
+**これらの値をMCP Client設定に使用してください。**
 
 ### スタック出力の確認
 
@@ -216,14 +259,15 @@ make verify-cognito USER_POOL_ID=us-east-1_XXXXXXXXX
 - **認証方式**: Email/Username + Password
 - **OAuth 2.1フロー**: Authorization Code Grant (PKCE必須)
 - **スコープ**: 
-  - `openid`
-  - `email`
-  - `profile`
-  - `mcp-server/tools` (カスタムスコープ)
+  - `openid` - 基本的なユーザー識別情報
+  - `email` - ユーザーのメールアドレス
+  - `profile` - ユーザープロファイル情報
 - **コールバックURL**: 
   - `http://localhost:3000/callback`
   - `https://localhost:3000/callback`
 - **Managed UI**: 有効
+
+**注意**: 現在の実装では標準OAuthスコープのみを使用しています。カスタムスコープが必要な場合は、デプロイ後にCognitoコンソールから追加できます。
 
 ## 開発
 
@@ -232,14 +276,29 @@ make verify-cognito USER_POOL_ID=us-east-1_XXXXXXXXX
 - `lib/`: AWS CDKインフラストラクチャ定義
 - `src/auth-proxy/`: OAuth 2.1認可プロキシのLambda関数
 - `src/mcp-server/`: MCPサーバーのLambda関数
+- `src/config/`: 集約設定管理
 - `src/types/`: 共有型定義
 - `src/utils/`: 共有ユーティリティ関数
+  - `errors.ts`: カスタムエラークラス
+  - `error-handler.ts`: 共通エラーハンドリング
+  - `validation.ts`: OAuth2パラメータバリデーション
+- `src/__tests__/helpers/`: テストヘルパー
+  - `mocks.ts`: 共通モックデータ
+  - `assertions.ts`: テストアサーション
 
 ### テスト戦略
 
 - ユニットテスト: Vitestを使用
+- 共通テストヘルパー: モックデータとアサーション関数を提供
 - プロパティベーステスト: 正確性プロパティの検証
 - 統合テスト: エンドツーエンドフローの検証
+
+### コード品質
+
+- TypeScript厳格モード
+- 共通エラーハンドリング: `withErrorHandling`ラッパー
+- 統一されたバリデーション: OAuth2パラメータの検証
+- テストカバレッジ: 主要機能の包括的なテスト
 
 ## CI/CD
 
@@ -292,6 +351,99 @@ make verify-cognito  # Cognito設定を確認
 make all             # すべて実行
 ```
 
+## MCP Client設定例
+
+デプロイ後、MCP Clientに以下の情報を設定してください。
+
+### 必要な情報の取得
+
+デプロイ後、以下のコマンドでエンドポイント情報を取得できます：
+
+```bash
+./scripts/get-outputs.sh
+# または
+make outputs
+```
+
+### Claude Desktop設定例
+
+`~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) または `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "authenticated-mcp": {
+      "url": "https://YOUR_MCP_SERVER_ID.execute-api.us-east-1.amazonaws.com/prod/mcp",
+      "transport": {
+        "type": "http"
+      },
+      "auth": {
+        "type": "oauth2",
+        "authorizationUrl": "https://YOUR_AUTH_PROXY_ID.execute-api.us-east-1.amazonaws.com/prod/authorize",
+        "tokenUrl": "https://YOUR_AUTH_PROXY_ID.execute-api.us-east-1.amazonaws.com/prod/token",
+        "clientId": "https://your-domain.com/client-metadata.json",
+        "scopes": ["openid", "email", "profile"],
+        "pkce": true
+      }
+    }
+  }
+}
+```
+
+### 設定値の説明
+
+| 項目 | 説明 | 取得方法 |
+|------|------|----------|
+| `url` | MCPサーバーエンドポイント | `McpEndpoint`の出力値 |
+| `authorizationUrl` | 認可エンドポイント | `AuthorizeEndpoint`の出力値 |
+| `tokenUrl` | トークンエンドポイント | `TokenEndpoint`の出力値 |
+| `clientId` | Client ID Metadata DocumentのURL | 自身でホストする必要があります |
+| `scopes` | 要求するスコープ | `["openid", "email", "profile"]` |
+| `pkce` | PKCE使用フラグ | 常に`true` |
+
+### Client ID Metadata Documentの準備
+
+MCPクライアントは、HTTPS URLでClient ID Metadata Documentをホストする必要があります。
+
+**例: `https://your-domain.com/client-metadata.json`**
+
+```json
+{
+  "client_id": "https://your-domain.com/client-metadata.json",
+  "client_name": "My MCP Client",
+  "client_uri": "https://your-domain.com",
+  "logo_uri": "https://your-domain.com/logo.png",
+  "redirect_uris": [
+    "http://localhost:3000/callback",
+    "https://your-domain.com/callback"
+  ],
+  "grant_types": ["authorization_code"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "scope": "openid email profile"
+}
+```
+
+**重要な注意事項:**
+- `client_id`はこのドキュメント自身のURLと完全に一致する必要があります
+- `redirect_uris`にはMCPクライアントのコールバックURLを含める必要があります
+- HTTPSでホストする必要があります（開発時は`http://localhost`も可）
+
+### 簡易テスト用設定
+
+開発・テスト目的で、GitHub Gistを使用してClient ID Metadata Documentをホストできます：
+
+1. GitHub Gistで新しいファイルを作成
+2. 上記のJSONを貼り付け（`client_id`をGistのRaw URLに変更）
+3. "Create public gist"をクリック
+4. "Raw"ボタンをクリックしてURLを取得
+5. そのURLを`clientId`として使用
+
+**例:**
+```
+https://gist.githubusercontent.com/username/gist-id/raw/client-metadata.json
+```
+
 ## 使用例
 
 ### 完全な認証フロー
@@ -335,7 +487,7 @@ export AUTH_PROXY_URL="https://xxx.execute-api.us-east-1.amazonaws.com/prod"
 export MCP_SERVER_URL="https://yyy.execute-api.us-east-1.amazonaws.com/prod"
 
 # ブラウザで開く
-open "${AUTH_PROXY_URL}/authorize?response_type=code&client_id=https://example.com/client.json&redirect_uri=http://localhost:3000/callback&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&state=xyz123&scope=mcp:tools&resource=${MCP_SERVER_URL}"
+open "${AUTH_PROXY_URL}/authorize?response_type=code&client_id=https://example.com/client.json&redirect_uri=http://localhost:3000/callback&code_challenge=${CODE_CHALLENGE}&code_challenge_method=S256&state=xyz123&scope=openid%20email%20profile&resource=${MCP_SERVER_URL}"
 ```
 
 #### 4. ユーザー認証
@@ -409,6 +561,97 @@ curl -X POST "${MCP_SERVER_URL}/mcp" \
     "id": 2
   }'
 ```
+
+## MCP Inspectorを使ったテスト
+
+[MCP Inspector](https://github.com/modelcontextprotocol/inspector)は、MCPサーバーの動作を視覚的にテストできる公式ツールです。
+
+### インストール
+
+```bash
+npm install -g @modelcontextprotocol/inspector
+```
+
+### 基本的な使い方
+
+#### 1. MCP Inspectorの起動
+
+```bash
+mcp-inspector
+```
+
+ブラウザで `http://localhost:5173` が開きます。
+
+#### 2. サーバー接続設定
+
+MCP Inspectorの設定画面で以下を入力：
+
+**Server URL:**
+```
+https://YOUR_MCP_SERVER_ID.execute-api.us-east-1.amazonaws.com/prod/mcp
+```
+
+**Transport Type:**
+- `HTTP` を選択
+
+**Authentication:**
+- Type: `OAuth 2.0`
+- Authorization URL: `https://YOUR_AUTH_PROXY_ID.execute-api.us-east-1.amazonaws.com/prod/authorize`
+- Token URL: `https://YOUR_AUTH_PROXY_ID.execute-api.us-east-1.amazonaws.com/prod/token`
+- Client ID: `https://your-domain.com/client-metadata.json`
+- Scopes: `openid email profile`
+- PKCE: `Enabled`
+
+#### 3. 認証フロー
+
+1. "Connect" ボタンをクリック
+2. 認証画面が開くので、Cognitoでログイン
+3. 認証成功後、自動的にMCP Inspectorに戻ります
+
+#### 4. ツールのテスト
+
+接続後、以下の操作が可能です：
+
+- **Tools タブ**: 利用可能なツールの一覧表示
+- **Execute**: ツールの実行とレスポンスの確認
+- **Resources タブ**: リソースの一覧（実装されている場合）
+- **Prompts タブ**: プロンプトの一覧（実装されている場合）
+
+### トラブルシューティング
+
+#### CORS エラーが発生する場合
+
+API GatewayのCORS設定を確認してください。現在の実装では`Cors.ALL_ORIGINS`を許可していますが、本番環境では特定のオリジンのみを許可することを推奨します。
+
+#### 認証がループする場合
+
+1. Client ID Metadata Documentが正しくホストされているか確認
+2. `redirect_uris`にMCP Inspectorのコールバック URL（通常は`http://localhost:5173/callback`）が含まれているか確認
+3. ブラウザのキャッシュとCookieをクリア
+
+### Client ID Metadata Document（MCP Inspector用）
+
+MCP Inspectorを使用する場合、以下のようなClient ID Metadata Documentを準備してください：
+
+```json
+{
+  "client_id": "https://your-domain.com/mcp-inspector-client.json",
+  "client_name": "MCP Inspector",
+  "client_uri": "http://localhost:5173",
+  "redirect_uris": [
+    "http://localhost:5173/callback",
+    "http://localhost:5173/oauth/callback"
+  ],
+  "grant_types": ["authorization_code"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "scope": "openid email profile"
+}
+```
+
+### デモ動画
+
+MCP Inspectorの使い方については、[公式ドキュメント](https://github.com/modelcontextprotocol/inspector)を参照してください。
 
 ### 簡易テストスクリプト
 
@@ -579,6 +822,34 @@ aws dynamodb delete-item \
 ## 貢献
 
 プルリクエストを歓迎します。大きな変更の場合は、まずissueを開いて変更内容を議論してください。
+
+## ドキュメント
+
+詳細なドキュメントは`docs/`ディレクトリにあります：
+
+### 入門ガイド
+- [Getting Started](docs/GETTING_STARTED.md) - 初めての方向けのセットアップガイド
+- [Quick Reference](docs/QUICK_REFERENCE.md) - よく使うコマンドのクイックリファレンス
+
+### 設定・デプロイ
+- [Environment Setup](docs/ENVIRONMENT_SETUP.md) - 環境変数の設定方法
+- [Configuration](docs/CONFIGURATION.md) - 設定管理の詳細
+- [Deployment](docs/DEPLOYMENT.md) - デプロイメント手順
+- [Infrastructure](docs/INFRASTRUCTURE.md) - インフラストラクチャの詳細
+
+### 認証・認可
+- [Cognito Setup](docs/COGNITO_SETUP.md) - Cognito User Poolの設定
+- [Authorization Flow](docs/AUTHORIZATION_FLOW_EXAMPLE.md) - 認可フローの例
+- [Client Metadata Document](docs/CLIENT_METADATA_DOCUMENT.md) - Client ID Metadata Documentの仕様
+
+### API リファレンス
+- [API Reference](docs/API_REFERENCE.md) - 全エンドポイントのAPIリファレンス
+- [Usage Guide](docs/USAGE_GUIDE.md) - 使用方法の詳細ガイド
+
+### 実装詳細
+- [Consent Flow](docs/CONSENT_FLOW_ANALYSIS.md) - 同意画面フローの分析
+- [Token Endpoint](docs/TOKEN_ENDPOINT.md) - トークンエンドポイントの実装
+- [Authorization Endpoint](docs/AUTHORIZE_ENDPOINT.md) - 認可エンドポイントの実装
 
 ## ライセンス
 

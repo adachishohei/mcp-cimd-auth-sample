@@ -45,7 +45,7 @@ export async function handler(
       logoUri: session.clientMetadata.logo_uri,
       scopes: parseScopes(session.scope),
       sessionId,
-      authProxyBaseUrl: config.authProxyBaseUrl || '',
+      authProxyBaseUrl: config.authProxyBaseUrl,
     });
     
     return {
@@ -116,7 +116,7 @@ async function retrieveSession(
  */
 function parseScopes(scope?: string): string[] {
   if (!scope) {
-    return ['openid', 'email', 'profile', 'mcp:tools'];
+    return ['openid', 'email', 'profile'];
   }
   return scope.split(' ').filter(s => s.length > 0);
 }
@@ -129,8 +129,6 @@ function getScopeDescription(scope: string): string {
     'openid': 'Access your basic profile',
     'email': 'Access your email address',
     'profile': 'Access your profile information',
-    'mcp:tools': 'Access MCP tools and resources',
-    'mcp-server/tools': 'Access MCP server tools',
   };
   return descriptions[scope] || scope;
 }

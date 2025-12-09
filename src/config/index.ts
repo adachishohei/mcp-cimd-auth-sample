@@ -14,7 +14,7 @@ export interface AuthProxyConfig {
   cognitoDomain: string;
   cognitoClientId: string;
   cognitoRegion: string;
-  authProxyBaseUrl?: string;
+  authProxyBaseUrl: string;
 }
 
 export interface McpServerConfig {
@@ -72,6 +72,13 @@ function validateUrl(url: string, name: string): void {
 }
 
 /**
+ * Build API Gateway URL from API ID, stage, and region
+ */
+function buildApiGatewayUrl(apiId: string, stage: string, region: string): string {
+  return `https://${apiId}.execute-api.${region}.amazonaws.com/${stage}`;
+}
+
+/**
  * Gets and validates Auth Proxy configuration
  * 
  * Required environment variables:
@@ -79,16 +86,17 @@ function validateUrl(url: string, name: string): void {
  * - COGNITO_DOMAIN: Cognito User Pool domain prefix
  * - COGNITO_CLIENT_ID: Cognito User Pool Client ID
  * - COGNITO_REGION or AWS_REGION: AWS region
- * 
- * Optional environment variables:
- * - AUTH_PROXY_BASE_URL: Base URL of the auth proxy (for callback URL construction)
+ * - API_ID: API Gateway REST API ID
+ * - STAGE_NAME: API Gateway stage name
  */
 export function getAuthProxyConfig(): AuthProxyConfig {
   const sessionTableName = requireEnv('SESSION_TABLE_NAME');
   const cognitoDomain = requireEnv('COGNITO_DOMAIN');
   const cognitoClientId = requireEnv('COGNITO_CLIENT_ID');
   const cognitoRegion = getEnv('COGNITO_REGION', process.env.AWS_REGION || 'us-east-1');
-  const authProxyBaseUrl = process.env.AUTH_PROXY_BASE_URL;
+  const apiId = requireEnv('API_ID');
+  const stageName = requireEnv('STAGE_NAME');
+  const region = getEnv('AWS_REGION_NAME', cognitoRegion);
 
   // Validate configuration
   if (sessionTableName.length === 0) {
@@ -103,10 +111,8 @@ export function getAuthProxyConfig(): AuthProxyConfig {
     throw new ConfigurationError('COGNITO_CLIENT_ID cannot be empty');
   }
 
-  // Validate authProxyBaseUrl if provided
-  if (authProxyBaseUrl && authProxyBaseUrl.trim() !== '') {
-    validateUrl(authProxyBaseUrl, 'AUTH_PROXY_BASE_URL');
-  }
+  // Build Auth Proxy Base URL from API ID and stage
+  const authProxyBaseUrl = buildApiGatewayUrl(apiId, stageName, region);
 
   return {
     sessionTableName,
@@ -121,8 +127,9 @@ export function getAuthProxyConfig(): AuthProxyConfig {
  * Gets and validates MCP Server configuration
  * 
  * Required environment variables:
- * - MCP_SERVER_URI: Base URI of the MCP server
- * - AUTH_PROXY_URI: Base URI of the auth proxy
+ * - MCP_API_ID: MCP Server API Gateway REST API ID
+ * - AUTH_API_ID: Auth Proxy API Gateway REST API ID
+ * - STAGE_NAME: API Gateway stage name
  * - COGNITO_USER_POOL_ID: Cognito User Pool ID
  * - COGNITO_CLIENT_ID: Cognito User Pool Client ID
  * - COGNITO_REGION or AWS_REGION: AWS region
@@ -131,16 +138,18 @@ export function getAuthProxyConfig(): AuthProxyConfig {
  * - SUPPORTED_SCOPES: Comma-separated list of supported OAuth scopes (default: mcp:tools)
  */
 export function getMcpServerConfig(): McpServerConfig {
-  const mcpServerUri = requireEnv('MCP_SERVER_URI');
-  const authProxyUri = requireEnv('AUTH_PROXY_URI');
+  const mcpApiId = requireEnv('MCP_API_ID');
+  const authApiId = requireEnv('AUTH_API_ID');
+  const stageName = requireEnv('STAGE_NAME');
   const cognitoUserPoolId = requireEnv('COGNITO_USER_POOL_ID');
   const cognitoClientId = requireEnv('COGNITO_CLIENT_ID');
   const cognitoRegion = getEnv('COGNITO_REGION', process.env.AWS_REGION || 'us-east-1');
-  const supportedScopesStr = getEnv('SUPPORTED_SCOPES', 'mcp:tools');
+  const region = getEnv('AWS_REGION_NAME', cognitoRegion);
+  const supportedScopesStr = getEnv('SUPPORTED_SCOPES', 'openid,email,profile');
 
-  // Validate URLs
-  validateUrl(mcpServerUri, 'MCP_SERVER_URI');
-  validateUrl(authProxyUri, 'AUTH_PROXY_URI');
+  // Build URIs from API IDs
+  const mcpServerUri = buildApiGatewayUrl(mcpApiId, stageName, region);
+  const authProxyUri = buildApiGatewayUrl(authApiId, stageName, region);
 
   // Parse and validate scopes
   const supportedScopes = supportedScopesStr

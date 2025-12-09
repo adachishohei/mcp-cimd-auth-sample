@@ -31,6 +31,7 @@ export interface ProtectedResourceMetadata {
  * Session data stored in DynamoDB
  */
 export interface AuthSession {
+  sessionId: string;
   code_challenge: string;
   code_challenge_method: string;
   client_id: string;
@@ -42,6 +43,7 @@ export interface AuthSession {
   consentedAt?: number;
   created_at: number;
   ttl: number;
+  authorization_code?: string;
 }
 
 /**

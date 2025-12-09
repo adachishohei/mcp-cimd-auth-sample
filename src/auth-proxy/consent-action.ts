@@ -253,7 +253,7 @@ async function deleteSession(
  * Build Cognito authorization URL
  */
 function buildCognitoAuthUrl(
-  config: { cognitoDomain: string; cognitoRegion: string; cognitoClientId: string; authProxyBaseUrl?: string },
+  config: { cognitoDomain: string; cognitoRegion: string; cognitoClientId: string; authProxyBaseUrl: string },
   params: {
     sessionId: string;
     scope?: string;
@@ -268,7 +268,7 @@ function buildCognitoAuthUrl(
     response_type: 'code',
     client_id: config.cognitoClientId,
     redirect_uri: authProxyCallbackUrl,
-    scope: params.scope || 'openid email profile mcp-server/tools',
+    scope: params.scope || 'openid email profile',
     state: params.sessionId,
   });
   

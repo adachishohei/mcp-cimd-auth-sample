@@ -8,12 +8,14 @@ describe('Protected Resource Metadata Handler', () => {
   beforeEach(() => {
     process.env = {
       ...originalEnv,
-      MCP_SERVER_URI: 'https://mcp-server.example.com',
-      AUTH_PROXY_URI: 'https://auth-proxy.example.com',
+      MCP_API_ID: 'test-mcp-api-id',
+      AUTH_API_ID: 'test-auth-api-id',
+      STAGE_NAME: 'prod',
+      AWS_REGION_NAME: 'us-east-1',
       COGNITO_USER_POOL_ID: 'us-east-1_test123',
       COGNITO_CLIENT_ID: 'test-client-id',
       COGNITO_REGION: 'us-east-1',
-      SUPPORTED_SCOPES: 'mcp:tools',
+      SUPPORTED_SCOPES: 'openid,email,profile',
     };
   });
 
@@ -33,21 +35,23 @@ describe('Protected Resource Metadata Handler', () => {
     
     // 要件 4.3: resourceフィールドを含む
     expect(metadata).toHaveProperty('resource');
-    expect(metadata.resource).toBe('https://mcp-server.example.com');
+    expect(metadata.resource).toBe('https://test-mcp-api-id.execute-api.us-east-1.amazonaws.com/prod');
     
     // 要件 4.2: authorization_serversフィールドを含む
     expect(metadata).toHaveProperty('authorization_servers');
     expect(Array.isArray(metadata.authorization_servers)).toBe(true);
-    expect(metadata.authorization_servers).toContain('https://auth-proxy.example.com');
+    expect(metadata.authorization_servers).toContain('https://test-auth-api-id.execute-api.us-east-1.amazonaws.com/prod');
     
     // 要件 4.4: scopes_supportedフィールドを含む
     expect(metadata).toHaveProperty('scopes_supported');
     expect(Array.isArray(metadata.scopes_supported)).toBe(true);
-    expect(metadata.scopes_supported).toContain('mcp:tools');
+    expect(metadata.scopes_supported).toContain('openid');
+    expect(metadata.scopes_supported).toContain('email');
+    expect(metadata.scopes_supported).toContain('profile');
   });
 
-  it('should return 500 when MCP_SERVER_URI is not set', async () => {
-    delete process.env.MCP_SERVER_URI;
+  it('should return 500 when MCP_API_ID is not set', async () => {
+    delete process.env.MCP_API_ID;
     const event = {} as APIGatewayProxyEvent;
 
     const result = await handler(event);
@@ -57,8 +61,8 @@ describe('Protected Resource Metadata Handler', () => {
     expect(body).toHaveProperty('error', 'server_error');
   });
 
-  it('should return 500 when AUTH_PROXY_URI is not set', async () => {
-    delete process.env.AUTH_PROXY_URI;
+  it('should return 500 when AUTH_API_ID is not set', async () => {
+    delete process.env.AUTH_API_ID;
     const event = {} as APIGatewayProxyEvent;
 
     const result = await handler(event);

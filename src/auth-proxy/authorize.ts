@@ -79,6 +79,7 @@ export async function handler(
 
     // Store session data in DynamoDB with client metadata
     const session: AuthSession = {
+      sessionId,
       code_challenge: codeChallenge,
       code_challenge_method: codeChallengeMethod,
       client_id: clientId,
@@ -94,10 +95,7 @@ export async function handler(
     await docClient.send(
       new PutCommand({
         TableName: config.sessionTableName,
-        Item: {
-          sessionId,
-          ...session,
-        },
+        Item: session,
       })
     );
 

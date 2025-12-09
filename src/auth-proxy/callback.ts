@@ -81,6 +81,9 @@ export async function handler(
       throw new OAuth2Error('access_denied', 'User consent required');
     }
 
+    // Store the authorization code in the session for token exchange
+    await storeAuthorizationCode(config.sessionTableName, state, code);
+
     // Redirect to MCP client with authorization code
     return redirectToClient(session.redirect_uri, {
       code,
@@ -137,6 +140,32 @@ async function retrieveSession(
   } catch (error) {
     console.error('Failed to retrieve session:', error);
     return null;
+  }
+}
+
+/**
+ * Store authorization code in session
+ */
+async function storeAuthorizationCode(
+  tableName: string,
+  sessionId: string,
+  code: string
+): Promise<void> {
+  try {
+    const { UpdateCommand } = await import('@aws-sdk/lib-dynamodb');
+    await docClient.send(
+      new UpdateCommand({
+        TableName: tableName,
+        Key: { sessionId },
+        UpdateExpression: 'SET authorization_code = :code',
+        ExpressionAttributeValues: {
+          ':code': code,
+        },
+      })
+    );
+  } catch (error) {
+    console.error('Failed to store authorization code:', error);
+    throw error;
   }
 }
 
