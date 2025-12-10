@@ -29,7 +29,7 @@ OAuth 2.1認証機能を持つリモートModel Context Protocol (MCP)サーバ�
 
 ## クイックスタート
 
-初めての方は、[Getting Startedガイド](docs/GETTING_STARTED.md)を参照してください。
+初めての方は、[Getting Startedガイド](docs/getting-started/GETTING_STARTED.md)を参照してください。
 
 ```bash
 # 1. 依存関係のインストール
@@ -48,7 +48,7 @@ npm run deploy
 curl https://<MCP_SERVER_URL>/.well-known/oauth-protected-resource
 ```
 
-詳細な手順は[Getting Started](docs/GETTING_STARTED.md)を参照してください。
+詳細な手順は[Getting Started](docs/getting-started/GETTING_STARTED.md)を参照してください。
 
 ## プロジェクト構造
 
@@ -317,7 +317,7 @@ make verify-cognito USER_POOL_ID=us-east-1_XXXXXXXXX
 
 2. AWS IAMでOIDCプロバイダーとロールを設定（詳細は `docs/DEPLOYMENT.md` を参照）
 
-詳細なデプロイ手順については、[デプロイメントガイド](docs/DEPLOYMENT.md)を参照してください。
+詳細なデプロイ手順については、[デプロイメントガイド](docs/getting-started/DEPLOYMENT.md)を参照してください。
 
 ## 利用可能なコマンド
 
@@ -722,7 +722,7 @@ aws lambda get-function-configuration \
   --query 'Environment.Variables'
 ```
 
-詳細は [環境設定ドキュメント](docs/ENVIRONMENT_SETUP.md) を参照してください。
+詳細は [環境設定ドキュメント](docs/getting-started/ENVIRONMENT_SETUP.md) を参照してください。
 
 ## トラブルシューティング
 
@@ -771,36 +771,36 @@ aws dynamodb delete-item \
   --key '{"sessionId": {"S": "SESSION_ID"}}'
 ```
 
-詳細なトラブルシューティングは [クイックリファレンス](docs/QUICK_REFERENCE.md) を参照してください。
+詳細なトラブルシューティングは [クイックリファレンス](docs/architecture/QUICK_REFERENCE.md) を参照してください。
 
 ## ドキュメント
 
 ### はじめに
 
-- **[Getting Started](docs/GETTING_STARTED.md)** - 初めての方向けセットアップガイド
+- **[Getting Started](docs/getting-started/GETTING_STARTED.md)** - 初めての方向けセットアップガイド
 
 ### 主要ドキュメント
 
-- **[使用ガイド](docs/USAGE_GUIDE.md)** - MCPクライアント実装の完全ガイド
-- [デプロイメントガイド](docs/DEPLOYMENT.md) - 詳細なデプロイ手順とCI/CD設定
-- [クイックリファレンス](docs/QUICK_REFERENCE.md) - よく使うコマンドとタスク
-- [認可フロー例](docs/AUTHORIZATION_FLOW_EXAMPLE.md) - 完全な認可フローの詳細
+- **[使用ガイド](docs/guides/USAGE_GUIDE.md)** - MCPクライアント実装の完全ガイド
+- [デプロイメントガイド](docs/getting-started/DEPLOYMENT.md) - 詳細なデプロイ手順とCI/CD設定
+- [クイックリファレンス](docs/architecture/QUICK_REFERENCE.md) - よく使うコマンドとタスク
+- [認可フロー例](docs/guides/AUTHORIZATION_FLOW_EXAMPLE.md) - 完全な認可フローの詳細
 
 ### 設定ドキュメント
 
-- [環境設定](docs/ENVIRONMENT_SETUP.md) - 環境変数の詳細説明
-- [設定](docs/CONFIGURATION.md) - システム設定オプション
-- [Cognito設定](docs/COGNITO_SETUP.md) - Cognito User Poolの設定詳細
+- [環境設定](docs/getting-started/ENVIRONMENT_SETUP.md) - 環境変数の詳細説明
+- [設定](docs/configuration/CONFIGURATION.md) - システム設定オプション
+- [Cognito設定](docs/configuration/COGNITO_SETUP.md) - Cognito User Poolの設定詳細
 
 ### APIドキュメント
 
-- **[APIリファレンス](docs/API_REFERENCE.md)** - 全エンドポイントの完全なAPI仕様
-- [認可エンドポイント](docs/AUTHORIZE_ENDPOINT.md) - /authorizeエンドポイントの仕様
-- [トークンエンドポイント](docs/TOKEN_ENDPOINT.md) - /tokenエンドポイントの仕様
+- **[APIリファレンス](docs/api/API_REFERENCE.md)** - 全エンドポイントの完全なAPI仕様
+- [認可エンドポイント](docs/api/AUTHORIZE_ENDPOINT.md) - /authorizeエンドポイントの仕様
+- [トークンエンドポイント](docs/api/TOKEN_ENDPOINT.md) - /tokenエンドポイントの仕様
 
 ### インフラストラクチャ
 
-- [インフラストラクチャ](docs/INFRASTRUCTURE.md) - AWS CDKスタックの詳細
+- [インフラストラクチャ](docs/architecture/INFRASTRUCTURE.md) - AWS CDKスタックの詳細
 
 ## セキュリティ考慮事項
 
@@ -828,28 +828,27 @@ aws dynamodb delete-item \
 詳細なドキュメントは`docs/`ディレクトリにあります：
 
 ### 入門ガイド
-- [Getting Started](docs/GETTING_STARTED.md) - 初めての方向けのセットアップガイド
-- [Quick Reference](docs/QUICK_REFERENCE.md) - よく使うコマンドのクイックリファレンス
+- [Getting Started](docs/getting-started/GETTING_STARTED.md) - 初めての方向けのセットアップガイド
+- [Quick Reference](docs/architecture/QUICK_REFERENCE.md) - よく使うコマンドのクイックリファレンス
 
 ### 設定・デプロイ
-- [Environment Setup](docs/ENVIRONMENT_SETUP.md) - 環境変数の設定方法
-- [Configuration](docs/CONFIGURATION.md) - 設定管理の詳細
-- [Deployment](docs/DEPLOYMENT.md) - デプロイメント手順
-- [Infrastructure](docs/INFRASTRUCTURE.md) - インフラストラクチャの詳細
+- [Environment Setup](docs/getting-started/ENVIRONMENT_SETUP.md) - 環境変数の設定方法
+- [Configuration](docs/configuration/CONFIGURATION.md) - 設定管理の詳細
+- [Deployment](docs/getting-started/DEPLOYMENT.md) - デプロイメント手順
+- [Infrastructure](docs/architecture/INFRASTRUCTURE.md) - インフラストラクチャの詳細
 
 ### 認証・認可
-- [Cognito Setup](docs/COGNITO_SETUP.md) - Cognito User Poolの設定
-- [Authorization Flow](docs/AUTHORIZATION_FLOW_EXAMPLE.md) - 認可フローの例
-- [Client Metadata Document](docs/CLIENT_METADATA_DOCUMENT.md) - Client ID Metadata Documentの仕様
+- [Cognito Setup](docs/configuration/COGNITO_SETUP.md) - Cognito User Poolの設定
+- [Authorization Flow](docs/guides/AUTHORIZATION_FLOW_EXAMPLE.md) - 認可フローの例
+- [Client Metadata Document](docs/guides/CLIENT_METADATA_DOCUMENT.md) - Client ID Metadata Documentの仕様
 
 ### API リファレンス
-- [API Reference](docs/API_REFERENCE.md) - 全エンドポイントのAPIリファレンス
-- [Usage Guide](docs/USAGE_GUIDE.md) - 使用方法の詳細ガイド
+- [API Reference](docs/api/API_REFERENCE.md) - 全エンドポイントのAPIリファレンス
+- [Usage Guide](docs/guides/USAGE_GUIDE.md) - 使用方法の詳細ガイド
 
 ### 実装詳細
-- [Consent Flow](docs/CONSENT_FLOW_ANALYSIS.md) - 同意画面フローの分析
-- [Token Endpoint](docs/TOKEN_ENDPOINT.md) - トークンエンドポイントの実装
-- [Authorization Endpoint](docs/AUTHORIZE_ENDPOINT.md) - 認可エンドポイントの実装
+- [Token Endpoint](docs/api/TOKEN_ENDPOINT.md) - トークンエンドポイントの実装
+- [Authorization Endpoint](docs/api/AUTHORIZE_ENDPOINT.md) - 認可エンドポイントの実装
 
 ## ライセンス
 
