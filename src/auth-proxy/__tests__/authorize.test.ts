@@ -95,6 +95,7 @@ describe('Authorization Endpoint', () => {
         redirect_uri: 'http://localhost:3000/callback',
         code_challenge: 'test-challenge',
         code_challenge_method: 'plain',
+        state: 'test-state',
       },
     });
 
@@ -103,5 +104,58 @@ describe('Authorization Endpoint', () => {
     assertOAuth2Error(result, 'invalid_request');
     const body = JSON.parse(result.body);
     expect(body.error_description).toContain('S256');
+  });
+
+  it('should return 400 when state parameter is missing', async () => {
+    const event = createMockEvent({
+      queryStringParameters: {
+        response_type: 'code',
+        client_id: 'https://example.com/client.json',
+        redirect_uri: 'http://localhost:3000/callback',
+        code_challenge: 'test-challenge',
+        code_challenge_method: 'S256',
+      },
+    });
+
+    const result = await handler(event);
+
+    assertOAuth2Error(result, 'invalid_request');
+    const body = JSON.parse(result.body);
+    expect(body.error_description).toContain('state');
+    expect(body.error_description).toContain('CSRF');
+  });
+
+  it('should accept valid authorization request with state parameter', async () => {
+    // Mock successful client metadata fetch
+    const mockClientMetadata = {
+      client_id: 'https://example.com/client.json',
+      client_name: 'Test Client',
+      redirect_uris: ['http://localhost:3000/callback'],
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    };
+
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => mockClientMetadata,
+    });
+
+    const event = createMockEvent({
+      queryStringParameters: {
+        response_type: 'code',
+        client_id: 'https://example.com/client.json',
+        redirect_uri: 'http://localhost:3000/callback',
+        code_challenge: 'test-challenge',
+        code_challenge_method: 'S256',
+        state: 'test-state-value',
+      },
+    });
+
+    const result = await handler(event);
+
+    expect(result.statusCode).toBe(302);
+    expect(result.headers?.Location).toBeDefined();
   });
 });
