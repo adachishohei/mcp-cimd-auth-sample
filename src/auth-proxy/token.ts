@@ -30,6 +30,7 @@ export async function handler(
     const redirectUri = body.redirect_uri;
     const clientId = body.client_id;
     const codeVerifier = body.code_verifier;
+    const state = body.state;
 
     // Validate required parameters
     if (!grantType || grantType !== 'authorization_code') {
@@ -52,8 +53,11 @@ export async function handler(
       throw new OAuth2Error('invalid_request', 'code_verifier is required (PKCE)');
     }
 
-    // Retrieve session from DynamoDB using the authorization code
-    const session = await findSessionByCode(config.sessionTableName, code);
+    // Retrieve session from DynamoDB using the state parameter (sessionId)
+    // The state parameter is used to maintain session state between authorization and token requests
+    const session = state 
+      ? await retrieveSession(state)
+      : await findSessionByCode(config.sessionTableName, code);
 
     if (!session) {
       throw new OAuth2Error('invalid_grant', 'Invalid or expired authorization code');
@@ -67,13 +71,14 @@ export async function handler(
       throw new OAuth2Error('invalid_grant', 'PKCE verification failed');
     }
 
-    // Validate that client_id and redirect_uri match the session
+    // Validate that client_id matches the session
     if (session.client_id !== clientId) {
-      throw new OAuth2Error('invalid_grant', 'client_id mismatch');
+      throw new OAuth2Error('invalid_grant', 'Invalid or expired authorization code: client_id does not match');
     }
 
+    // Validate that redirect_uri matches the session
     if (session.redirect_uri !== redirectUri) {
-      throw new OAuth2Error('invalid_grant', 'redirect_uri mismatch');
+      throw new OAuth2Error('invalid_grant', 'Invalid or expired authorization code: redirect_uri does not match');
     }
 
     // 要件 2.3: PKCE検証が成功したらCognitoのトークンエンドポイントを呼び出す

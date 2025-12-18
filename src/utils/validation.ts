@@ -67,9 +67,12 @@ export function validateAuthorizationRequest(params: {
     );
   }
 
-  // State is recommended but not required
+  // State parameter is required for CSRF protection (OAuth 2.1)
   if (!params.state) {
-    console.warn('Authorization request without state parameter (CSRF protection recommended)');
+    throw new OAuth2Error(
+      'invalid_request',
+      'Missing required parameter: state (CSRF protection required)'
+    );
   }
 }
 

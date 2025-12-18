@@ -55,6 +55,12 @@ export async function handler(
       throw new OAuth2Error('invalid_request', 'code_challenge_method must be S256');
     }
 
+    // State parameter is required for CSRF protection (OAuth 2.1)
+    // State parameter is required for CSRF protection (OAuth 2.1)
+    if (!state || state.trim().length === 0) {
+      throw new OAuth2Error('invalid_request', 'state is required (CSRF protection)');
+    }
+
     // 要件 1.2: client_id（URL形式）からClient ID Metadata Documentを取得
     const clientMetadata = await fetchClientMetadata(clientId);
 
@@ -84,7 +90,7 @@ export async function handler(
       code_challenge_method: codeChallengeMethod,
       client_id: clientId,
       redirect_uri: redirectUri,
-      state: state || '',
+      state: state, // State is now required
       scope,
       clientMetadata, // Store metadata for consent page
       consented: false, // User hasn't consented yet
