@@ -56,7 +56,8 @@ export async function handler(
     }
 
     // State parameter is required for CSRF protection (OAuth 2.1)
-    if (!state) {
+    // State parameter is required for CSRF protection (OAuth 2.1)
+    if (!state || state.trim().length === 0) {
       throw new OAuth2Error('invalid_request', 'state is required (CSRF protection)');
     }
 
